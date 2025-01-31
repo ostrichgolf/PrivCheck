@@ -15,7 +15,7 @@ PrivCheck currently includes the following modules:
 | `tokenpriv`         | Lists the current token privileges and highlights known vulnerable ones.                                                                                                                                                                                       |
 | `unattendfiles`     | Checks for leftover unattend files that might contain sensitive information *(New module)*.                                                                                                                                                                    |
 | `unquotedsvc`       | Checks for unquoted service paths. This module has been updated to display the vulnerable service name and path.                                                                                                                                               |
-| `vulnerabledrivers` | Checks if any service on the system uses a known vulnerable driver (based on loldrivers.io). <br>The list of vulnerable drivers is downloaded from loldrivers.io during compilation, then baked into the BOF. Recompile periodically to update *(New module)*. |
+| `vulndrivers` | Checks if any service on the system uses a known vulnerable driver (based on loldrivers.io). <br>The list of vulnerable drivers is downloaded from loldrivers.io during compilation, then baked into the BOF. Recompile periodically to update *(New module)*. |
 
 All modules have been tested with Havoc and Windows 11 x64.
 
