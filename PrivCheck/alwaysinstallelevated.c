@@ -1,25 +1,20 @@
 #include <windows.h>
 #include <stdio.h>
-#include "beacon.h"
+#include "../includes/beacon.h"
+#include "../includes/bofdefs.h"
 
-DECLSPEC_IMPORT const char* WINAPI MSVCRT$strstr(const char*, const char*);
-DECLSPEC_IMPORT WINADVAPI LONG WINAPI Advapi32$RegOpenKeyExA(HKEY, LPCSTR, DWORD, REGSAM, PHKEY);
-DECLSPEC_IMPORT WINADVAPI LONG WINAPI Advapi32$RegEnumKeyExA(HKEY, DWORD, LPSTR, LPDWORD, LPDWORD, LPSTR, LPDWORD, LPFILETIME);
-DECLSPEC_IMPORT WINADVAPI LONG WINAPI Advapi32$RegGetValueA(HKEY, LPCSTR, LPCSTR, DWORD, LPDWORD, PVOID, LPDWORD);
-DECLSPEC_IMPORT WINADVAPI LONG WINAPI Advapi32$RegCloseKey(HKEY);
-DECLSPEC_IMPORT WINADVAPI LONG WINAPI Advapi32$RegQueryValueExA(HKEY,LPCSTR,LPDWORD,LPDWORD,LPBYTE,LPDWORD);
-
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 void go() {
     HKEY hKey;
-    DWORD alwaysInstallElevated;
+    DWORD alwaysInstallElevated = 0;
     DWORD bufferSize = sizeof(DWORD);
     const TCHAR* subkeys[] = {
-        TEXT("HKEY_CURRENT_USER\\Software\\Policies\\Microsoft\\Windows\\Installer"),
-        TEXT("HKEY_LOCAL_MACHINE\\Software\\Policies\\Microsoft\\Windows\\Installer")
+        TEXT("HKEY_CURRENT_USER"),
+        TEXT("HKEY_LOCAL_MACHINE")
     };
 
-    for (int i = 0; i < sizeof(subkeys) / sizeof(subkeys[0]); i++) {
+    for (int i = 0; i < ARRAY_SIZE(subkeys); i++) {
         if (Advapi32$RegOpenKeyExA((i == 0) ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE,
             TEXT("Software\\Policies\\Microsoft\\Windows\\Installer"),
             0,
@@ -34,23 +29,19 @@ void go() {
                 &bufferSize) == ERROR_SUCCESS) {
 
                 if (alwaysInstallElevated == 1) {
-                    BeaconPrintf(CALLBACK_OUTPUT,"Always Install Elevated Check Result: Vulnerable\n");
+                    BeaconPrintf(CALLBACK_OUTPUT, "[ALWAYS_INSTALL_ELEVATED][%s] Always Install Elevated Check Result: Vulnerable\n", subkeys[i]);
                 }
                 else {
-                    BeaconPrintf(CALLBACK_OUTPUT,"Always Install Elevated Check Result: Not Vulnerable\n");
+                    BeaconPrintf(CALLBACK_OUTPUT, "[ALWAYS_INSTALL_ELEVATED][%s] Always Install Elevated Check Result: Not Vulnerable\n", subkeys[i]);
                 }
-
             }
             else {
-                BeaconPrintf(CALLBACK_OUTPUT,"Unable to query AlwaysInstallElevated value.\n");
+                BeaconPrintf(CALLBACK_OUTPUT, "[ALWAYS_INSTALL_ELEVATED][%s] Unable to query AlwaysInstallElevated value.\n", subkeys[i]);
             }
-
             Advapi32$RegCloseKey(hKey);
-
         }
         else {
-            BeaconPrintf(CALLBACK_OUTPUT,"Unable to open registry key.\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "[ALWAYS_INSTALL_ELEVATED][%s] Registry key for AlwaysInstallElevated does not seem to exist.\n", subkeys[i]);
         }
     }
-
 }

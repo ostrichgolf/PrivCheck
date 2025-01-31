@@ -1,17 +1,34 @@
 #include <windows.h>
 #include <stdio.h>
-#include "beacon.h"
+#include "../includes/beacon.h"
+#include "../includes/bofdefs.h"
 
-DECLSPEC_IMPORT const char* WINAPI MSVCRT$strstr(const char*, const char*);
-DECLSPEC_IMPORT LONG WINAPI  WINAPI Advapi32$LookupPrivilegeNameA(LPCSTR,PLUID,LPSTR,LPDWORD);
-DECLSPEC_IMPORT LONG WINAPI WINAPI Advapi32$OpenProcessToken(HANDLE,DWORD,PHANDLE);
-DECLSPEC_IMPORT LONG WINAPI WINAPI Advapi32$GetTokenInformation(HANDLE,TOKEN_INFORMATION_CLASS,LPVOID,DWORD,PDWORD);
-DECLSPEC_IMPORT LONG WINAPI  WINAPI Kernel32$CloseHandle(HANDLE);
-DECLSPEC_IMPORT WINBASEAPI BOOL WINAPI Kernel32$HeapFree (HANDLE, DWORD, PVOID);
-DECLSPEC_IMPORT WINBASEAPI PVOID WINAPI Kernel32$HeapAlloc (HANDLE, DWORD, DWORD);
-DECLSPEC_IMPORT WINBASEAPI HANDLE WINAPI Kernel32$GetProcessHeap (VOID);
-DECLSPEC_IMPORT WINBASEAPI HANDLE WINAPI Kernel32$GetCurrentProcess (void);
+BOOL IsVulnerable(char * privilegeNameBuffer) {
+    // Define known vulnerable privileges
+    static const char * KnownVulnerable[] = {
+            "SeAssignPrimaryToken",
+            "SeBackupPrivilege",
+            "SeCreateTokenPrivilege",
+            "SeRestorePrivilege",
+            "SeDebugPrivilege",
+            "SeImpersonatePrivilege",
+            "SeLoadDriverPrivilege",
+            "SeManageVolumePrivilege",
+            "SeTcbPrivilege",
+            "SeTakeOwnershipPrivilege",
+            NULL
+    };
 
+    int i = 0;
+
+    while (KnownVulnerable[i]) {
+        if (MSVCRT$_stricmp(KnownVulnerable[i], privilegeNameBuffer) == 0) {
+            return TRUE;
+        }
+        i++;
+    }
+    return FALSE;
+}
 
 void DisplayPrivileges(TOKEN_PRIVILEGES* tokenPrivileges) {
     for (DWORD i = 0; i < tokenPrivileges->PrivilegeCount; ++i) {
@@ -20,7 +37,8 @@ void DisplayPrivileges(TOKEN_PRIVILEGES* tokenPrivileges) {
         DWORD bufferSize = sizeof(privilegeNameBuffer);
         if (Advapi32$LookupPrivilegeNameA(NULL, &privilegeLuid, privilegeNameBuffer, &bufferSize)) {
             BOOL isEnabled = (tokenPrivileges->Privileges[i].Attributes & SE_PRIVILEGE_ENABLED) == SE_PRIVILEGE_ENABLED;
-            BeaconPrintf(CALLBACK_OUTPUT,"%s : %s\n", privilegeNameBuffer, isEnabled ? "Enabled" : "Disabled");
+            BOOL isVulnerable = IsVulnerable(privilegeNameBuffer);
+            BeaconPrintf(CALLBACK_OUTPUT,"[PRIVILEGE] %s: %s %s\n", privilegeNameBuffer, isEnabled ? "Enabled" : "Disabled", isVulnerable ? "- Vulnerable" : "");
         }
     }
 }
@@ -28,29 +46,34 @@ void DisplayPrivileges(TOKEN_PRIVILEGES* tokenPrivileges) {
 void go() {
     HANDLE tokenHandle;
     if (!Advapi32$OpenProcessToken(Kernel32$GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
-        BeaconPrintf(CALLBACK_OUTPUT,"Failed to open process token. Error: %lu\n");
-
+        BeaconPrintf(CALLBACK_OUTPUT,"[PRIVILEGE] Failed to open process token. Error: %lu\n", Kernel32$GetLastError());
+        return;
     }
 
     DWORD tokenInfoSize = 0;
     Advapi32$GetTokenInformation(tokenHandle, TokenPrivileges, NULL, 0, &tokenInfoSize);
     if (tokenInfoSize == 0) {
-        BeaconPrintf(CALLBACK_OUTPUT,"Failed to get token information size. Error: %lu\n");
-        Kernel32$CloseHandle(tokenHandle);
-
+        BeaconPrintf(CALLBACK_OUTPUT,"[PRIVILEGE] Failed to get token information size. Error: %lu\n", Kernel32$GetLastError());
+        goto cleanup;
     }
 
     PTOKEN_PRIVILEGES tokenPrivileges = (PTOKEN_PRIVILEGES)Kernel32$HeapAlloc(Kernel32$GetProcessHeap(), HEAP_ZERO_MEMORY, tokenInfoSize);
+    if (!tokenPrivileges) {
+        BeaconPrintf(CALLBACK_OUTPUT, "[PRIVILEGE] Memory allocation failed.\n");
+        goto cleanup;
+    }
     if (!Advapi32$GetTokenInformation(tokenHandle, TokenPrivileges, tokenPrivileges, tokenInfoSize, &tokenInfoSize)) {
-        BeaconPrintf(CALLBACK_OUTPUT,"Failed to get token privileges. Error: %lu\n");
-        Kernel32$HeapFree(Kernel32$GetProcessHeap(), 0, tokenPrivileges);
-        Kernel32$CloseHandle(tokenHandle);
-
+        BeaconPrintf(CALLBACK_OUTPUT,"[PRIVILEGE] Failed to get token privileges. Error: %lu\n", Kernel32$GetLastError());
+        goto cleanup;
     }
 
     DisplayPrivileges(tokenPrivileges);
 
-    Kernel32$HeapFree(Kernel32$GetProcessHeap(), 0, tokenPrivileges);
-    Kernel32$CloseHandle(tokenHandle);
-
+    cleanup:
+        if (tokenPrivileges) {
+            Kernel32$HeapFree(Kernel32$GetProcessHeap(), 0, tokenPrivileges);
+        }
+        if (tokenHandle) {
+            Kernel32$CloseHandle(tokenHandle);
+        }
 }
