@@ -1,63 +1,27 @@
-# PrivKit
-PrivKit is a simple beacon object file that detects privilege escalation vulnerabilities caused by misconfigurations on Windows OS.
+# PrivCheck
 
-## PrivKit detects following misconfigurations
+PrivCheck is a collection of Beacon Object Files (BOFs) designed to detect common privilege escalation paths in Windows OS.
 
-```
- Checks for Unquoted Service Paths
- Checks for Autologon Registry Keys
- Checks for Always Install Elevated Registry Keys
- Checks for Modifiable Autoruns
- Checks for Hijackable Paths
- Enumerates Credentials From Credential Manager
- Looks for current Token Privileges
- ```
- 
- ## Usage
- 
-```
-[03/20 00:51:06] beacon> privcheck
-[03/20 00:51:06] [*] Priv Esc Check Bof by @merterpreter
-[03/20 00:51:06] [*] Checking For Unquoted Service Paths..
-[03/20 00:51:06] [*] Checking For Autologon Registry Keys..
-[03/20 00:51:06] [*] Checking For Always Install Elevated Registry Keys..
-[03/20 00:51:06] [*] Checking For Modifiable Autoruns..
-[03/20 00:51:06] [*] Checking For Hijackable Paths..
-[03/20 00:51:06] [*] Enumerating Credentials From Credential Manager..
-[03/20 00:51:06] [*] Checking For Token Privileges..
-[03/20 00:51:06] [+] host called home, sent: 10485 bytes
-[03/20 00:51:06] [+] received output:
-Unquoted Service Path Check Result: Vulnerable service path found: c:\program files (x86)\grasssoft\macro expert\MacroService.exe
-```
+It was originally forked from [mertdas/PrivKit](https://github.com/mertdas/PrivKit), which no longer appears to be updated. PrivCheck fixes multiple bugs from the original project and adds new modules for detecting privilege escalation paths.
 
- Simply load the cna file and type "privcheck"<br>
- If you want to compile by yourself you can use:<br>
-```make all```<br>
-or <br>
-```x86_64-w64-mingw32-gcc -c cfile.c -o ofile.o```
+PrivCheck currently includes the following modules:
 
-If you want to look for just one misconf you can use object file with "inline-execute" for example<br>
-``` inline-execute /path/tokenprivileges.o```
+| Module              | Description                                                                                                                                                                                                                                                    |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `alwayselevated`    | Checks if `Always Install Elevated` is enabled using the registry.                                                                                                                                                                                             |
+| `autologon`         | Checks the registry for autologon information. The original module contained a bug that prevented it from returning any saved password.                                                                                                                        |
+| `credman`           | Checks the current user's Windows Credential Manager for saved web passwords and returns them. <br>The original module contained a bug that caused it to only return the first character of the saved password.                                                |
+| `hijackablepath`    | Checks the path environment variable for writable directories (`FILE_ADD_FILE`) that can be exploited to elevate privileges. <br>The original module did not work correctly and would simply return the first directory discovered, regardless of permissions. |
+| `tokenpriv`         | Lists the current token privileges and highlights known vulnerable ones.                                                                                                                                                                                       |
+| `unattendfiles`     | Checks for leftover unattend files that might contain sensitive information *(New module)*.                                                                                                                                                                    |
+| `unquotedsvc`       | Checks for unquoted service paths. This module has been updated to display the vulnerable service name and path.                                                                                                                                               |
+| `vulnerabledrivers` | Checks if any service on the system uses a known vulnerable driver (based on loldrivers.io). <br>The list of vulnerable drivers is downloaded from loldrivers.io during compilation, then baked into the BOF. Recompile periodically to update *(New module)*. |
 
-![privcheck1](https://user-images.githubusercontent.com/48562581/226249192-84da03d5-435a-4da0-a6e6-4c451d2403e4.PNG)
+All modules have been tested with Havoc and Windows 11 x64.
 
-![privcheck2](https://user-images.githubusercontent.com/48562581/226249135-a2444998-8c4f-4783-9b60-726c887032e4.PNG)
+A Havoc module (`havoc_privcheck.py`) is included to provide easy integration with the Havoc framework. Use `help privcheck` within Havoc to view usage information.
 
- ## Acknowledgement
- 
- Mr.Un1K0d3r - Offensive Coding Portal <br>
-https://mr.un1k0d3r.world/portal/
-
-Outflank - C2-Tool-Collection<br>
-https://github.com/outflanknl/C2-Tool-Collection
-
-dtmsecurity - Beacon Object File (BOF) Creation Helper<br>
-https://github.com/dtmsecurity/bof_helper
-
-Microsoft :) <br>
-https://learn.microsoft.com/en-us/windows/win32/api/
-
-HsTechDocs by HelpSystems(Fortra)<br>
-https://hstechdocs.helpsystems.com/manuals/cobaltstrike/current/userguide/content/topics/beacon-object-files_how-to-develop.htm
-
-
+### How to compile
+1. `cd` into the project folder.
+2. Run `make`. This uses `x86_64-w64-mingw32-gcc` for compilation and `python3` to retrieve the driver list from loldrivers.io.
+3. All compiled modules are saved in the `output` folder.
